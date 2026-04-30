@@ -1,7 +1,7 @@
 from django.urls import path
 
-from .views import JKWSightingCreateView
+from .views import JKWSightingListCreateView
 
 urlpatterns = [
-    path("sightings/", JKWSightingCreateView.as_view(), name="create-sighting"),
+    path("sightings/", JKWSightingListCreateView.as_view(), name="list-create-sightings"),
 ]

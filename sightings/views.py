@@ -4,6 +4,6 @@ from .models import JKWSighting
 from .serializers import JKWSightingSerializer
 
 
-class JKWSightingCreateView(generics.CreateAPIView):
-    queryset = JKWSighting.objects.all()
+class JKWSightingListCreateView(generics.ListCreateAPIView):
+    queryset = JKWSighting.objects.all().order_by("-created_at")
     serializer_class = JKWSightingSerializer
