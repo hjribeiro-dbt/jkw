@@ -72,3 +72,82 @@ class JKWSightingsAPITests(APITestCase):
         self.assertEqual(second["longitude"], str(s1_refreshed.longitude))
         self.assertEqual(second["description"], s1_refreshed.description)
         self.assertIsInstance(second["created_at"], str)
+
+    def test_post_valid_creates_record_and_returns_201(self):
+        payload = {
+            "latitude": "10.123456",
+            "longitude": "-20.654321",
+            "description": "A brand new sighting",
+        }
+        before = JKWSighting.objects.count()
+        response = self.client.post(self.url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(JKWSighting.objects.count(), before + 1)
+
+        # Verify response schema and values
+        expected_keys = {"id", "latitude", "longitude", "description", "created_at"}
+        self.assertEqual(set(response.data.keys()), expected_keys)
+        obj = JKWSighting.objects.order_by("-id").first()
+        self.assertEqual(response.data["id"], obj.id)
+        self.assertEqual(response.data["latitude"], str(obj.latitude))
+        self.assertEqual(response.data["longitude"], str(obj.longitude))
+        self.assertEqual(response.data["description"], obj.description)
+        self.assertIsInstance(response.data["created_at"], str)
+
+    def test_post_missing_latitude_returns_400(self):
+        payload = {
+            "longitude": "0.000000",
+            "description": "no lat",
+        }
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("latitude", response.data)
+
+    def test_post_missing_longitude_returns_400(self):
+        payload = {
+            "latitude": "0.000000",
+            "description": "no lon",
+        }
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("longitude", response.data)
+
+    def test_post_invalid_latitude_range_returns_400_with_message(self):
+        payload = {"latitude": "90.000001", "longitude": "0.000000"}
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("latitude", response.data)
+        self.assertIn("Latitude must be between -90 and 90.", response.data["latitude"]) 
+
+    def test_post_invalid_longitude_range_returns_400_with_message(self):
+        payload = {"latitude": "0.000000", "longitude": "180.000001"}
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("longitude", response.data)
+        self.assertIn("Longitude must be between -180 and 180.", response.data["longitude"]) 
+
+    def test_post_allows_blank_description(self):
+        payload = {"latitude": "1.000000", "longitude": "1.000000", "description": ""}
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        obj = JKWSighting.objects.get(pk=response.data["id"])
+        self.assertEqual(obj.description, "")
+        self.assertEqual(response.data["description"], "")
+
+    def test_post_read_only_fields_are_ignored(self):
+        # Client attempts to set id and created_at; these should be ignored
+        payload = {
+            "latitude": "2.000000",
+            "longitude": "3.000000",
+            "description": "tries to set read-only",
+            "id": 99999,
+            "created_at": "1999-01-01T00:00:00Z",
+        }
+        response = self.client.post(self.url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        obj = JKWSighting.objects.get(pk=response.data["id"])
+        # Ensure the id is not the client-sent one
+        self.assertNotEqual(obj.id, 99999)
+        # Ensure created_at is not the client-sent timestamp
+        self.assertNotEqual(response.data["created_at"], "1999-01-01T00:00:00Z")
